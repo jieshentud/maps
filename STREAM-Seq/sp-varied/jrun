@@ -1,0 +1,97 @@
+#!/bin/bash
+
+executable=stream-p
+
+if [ $1 == "help" ]; then
+	echo "use OCL-GPU ./jrun ocl gpu N fN lws"
+	echo "use OCL-CPU ./jrun ocl cpu N fN lws"
+	echo "use SMP     ./jrun smp cpu N fN lws"
+	echo "use BOTH    ./jrun both gpu N fN1 fN2 fN3 fN4 lwsg lwsc"
+fi
+
+if [ $1 == "ocl"  ]; then
+	plt=0
+	dvc=$2
+	N=$3
+	fN=$4
+	lws=$5
+	#set the number of opencl device, and the device type
+	if [ ${dvc} == "gpu" ]; then
+		export NX_OPENCL_MAX_DEVICES=1
+		export NX_OPENCL_DEVICE_TYPE=GPU
+	fi
+	if [ ${dvc} == "cpu" ]; then
+		export NX_OPENCL_MAX_DEVICES=1
+		export NX_OPENCL_DEVICE_TYPE=CPU
+	fi
+
+	export NX_SCHEDULE=glinda
+
+	#printing the summary
+	export NX_ARGS=--summary
+
+	#run the program
+	echo "[command ./${executable} ${plt} ${N} ${fN} ${lws}]"
+	./${executable} ${plt} ${N} ${fN} ${lws}
+fi
+
+
+if [ $1 == "smp" ]; then
+	plt=1
+	dvc=$2
+	N=$3
+	fN=$4
+	lws=$5
+	#set the number of threads, vary lws to change nth
+	Nctemp=`echo "scale=0; ${N} * ${fN}" | bc`      #get Nc
+        Nc=`echo "scale=0; (${Nctemp} + 0.5) / 1" | bc` #round up Nc
+        nth=`echo "scale=0; ${Nc} / ${lws}" | bc`
+        nthrmd=`echo "scale=0; ${Nc} % ${lws}" | bc`
+
+        #nth=`echo "scale=0; ${N} / ${lws}" | bc`
+        #nthrmd=`echo "scale=0; ${N} % ${lws}" | bc`
+
+	if [ ${nthrmd} -ne 0 ]; then
+		nth=`echo "scale=0; ${nth} + 1" | bc`  #nth=nth+1 if remainder is not 0
+	fi
+	export NX_THREADS=${nth}
+
+	export NX_SCHEDULE=glinda
+
+	#printing the summary
+	export NX_ARGS=--summary
+
+	#run the program
+	echo "[command ./${executable} ${plt} ${N} ${fN} ${lws} (${nth})]"
+	./${executable} ${plt} ${N} ${fN} ${lws}
+fi  
+
+if [ $1 == "both" ]; then
+	plt=2
+	dvc=$2
+	N=$3
+	fN1=$4
+	fN2=$5
+	fN3=$6
+	fN4=$7
+	lwsg=$8
+	lwsc=$9
+	#set the number of opencl device, and the device type
+	export NX_OPENCL_MAX_DEVICES=1
+	export NX_OPENCL_DEVICE_TYPE=GPU 
+	#set the number of threads to 6 which leads to the best performance according to experiment results
+	nth=6
+
+	export NX_THREADS=${nth}
+	
+	export NX_SCHEDULE=glinda
+
+	#printing the summary
+	export NX_ARGS=--summary
+
+	#run the program
+	echo "[command ./${excutable} ${plt} ${N} ${fN1} ${fN2} ${fN3} ${fN4} ${lwsg} ${lwsc} (${nth} ${nthrmd})]"
+	./${executable} ${plt} ${N} ${fN1} ${fN2} ${fN3} ${fN4} ${lwsg} ${lwsc}	
+fi
+
+

@@ -1,0 +1,105 @@
+#!/bin/bash
+
+executable=matmul-p
+
+if [ $1 == "help" ]; then
+	echo "use OCL-GPU ./jrun ocl gpu N fN lws"
+	echo "use OCL-CPU ./jrun ocl cpu N fN lws"
+	echo "use SMP     ./jrun smp cpu N fN lws"
+	echo "use BOTH    ./jrun both gpu N fN lwsg lwsc"
+fi
+
+if [ $1 == "ocl"  ]; then
+	plt=0
+	dvc=$2
+	N=$3
+	fN=$4
+	lws=$5
+	#set the number of opencl device, and the device type
+	if [ ${dvc} == "gpu" ]; then
+		export NX_OPENCL_MAX_DEVICES=1
+		export NX_OPENCL_DEVICE_TYPE=GPU
+	fi
+	if [ ${dvc} == "cpu" ]; then
+		export NX_OPENCL_MAX_DEVICES=1
+		export NX_OPENCL_DEVICE_TYPE=CPU
+	fi
+
+	export NX_SCHEDULE=glinda
+
+	#printing the summary
+	export NX_ARGS=--summary
+
+	#run the program
+	echo "[command ./${executable} ${plt} ${N} ${fN} ${lws}]"
+	./${executable} ${plt} ${N} ${fN} ${lws}
+fi
+
+
+if [ $1 == "smp" ]; then
+	plt=1
+	dvc=$2
+	N=$3
+	fN=$4
+	lws=$5
+
+	#set the number of threads, vary lws to change nth
+	Nctemp=`echo "scale=0; ${N} * ${fN}" | bc`      #get Nc
+	Nc=`echo "scale=0; (${Nctemp} + 0.5) / 1" | bc` #round up Nc
+	nth=`echo "scale=0; ${Nc} / ${lws}" | bc`	
+	nthrmd=`echo "scale=0; ${Nc} % ${lws}" | bc`
+
+	#nth=`echo "scale=0; ${N} / ${lws}" | bc`
+	#nthrmd=`echo "scale=0; ${N} % ${lws}" | bc`
+
+	if [ ${nthrmd} -ne 0 ]; then
+		nth=`echo "scale=0; ${nth} + 1" | bc`  #nth=nth+1 if remainder is not 0
+	fi
+	export NX_THREADS=${nth}
+
+	export NX_SCHEDULE=glinda
+
+	#printing the summary
+	export NX_ARGS=--summary
+
+	#run the program
+	echo "[command ./${executable} ${plt} ${N} ${fN} ${lws} (${nth})]"
+	./${executable} ${plt} ${N} ${fN} ${lws}
+fi  
+
+if [ $1 == "both" ]; then
+	plt=2
+	dvc=$2
+	N=$3
+	fN=$4
+	lwsg=$5
+	lwsc=$6
+	#set the number of opencl device, and the device type
+	export NX_OPENCL_MAX_DEVICES=1
+	export NX_OPENCL_DEVICE_TYPE=GPU 
+	#set the number of threads, vary lwsc to change nth
+	Ngtemp=`echo "scale=0; ${N} * ${fN}" | bc`      #get Ng
+	Ng=`echo "scale=0; (${Ngtemp} + 0.5) / 1" | bc` #round up Ng
+	Ngrmd=`echo "scale=0; ${Ng} % ${lwsg}" | bc`
+	if [ ${Ngrmd} -ne 0 ]; then
+		Ng=`echo "scale=0; ${Ng} + (${lwsg} - ${Ngrmd})" | bc`  #round up Ng to multiple of lwsg
+	fi
+	Nc=`echo "scale=0; ${N} - ${Ng}" | bc`  #get Nc
+	nth=`echo "scale=0; ${Nc} / ${lwsc}" | bc`  #get nth
+	nthrmd=`echo "scale=0; ${Nc} % ${lwsc}" | bc`
+	if [ ${nthrmd} -ne 0 ]; then
+		nth=`echo "scale=0; ${nth} + 1" | bc`  #nth=nth+1 if remainder is not 0
+	fi
+	export NX_THREADS=${nth}
+	
+	export NX_SCHEDULE=glinda
+
+	#printing the summary
+	export NX_ARGS=--summary
+
+	#run the program
+	echo "[command ./${excutable} ${plt} ${N} ${fN} ${lwsg} ${lwsc} (${Ng} ${Nc} ${nth} ${nthrmd})]"
+	./${executable} ${plt} ${N} ${fN} ${lwsg} ${lwsc}	
+fi
+
+
